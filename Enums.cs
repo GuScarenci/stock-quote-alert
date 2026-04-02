@@ -9,5 +9,5 @@ public enum StockAPI
 {
     Brapi,
     Yahoo,
-    MyMockData,
+    MockData,
 }

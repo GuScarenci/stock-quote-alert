@@ -10,13 +10,13 @@ public class EmailService {
     public void SendAlert(string subject, string body) {
         var message = new MimeKit.MimeMessage();
 
-        // Lendo as configurações de forma segura contra nulos
+        //Reading the settings safely to avoid nulls
         string smtpUser = _config["Settings:Smtp:User"] ?? "";
         string targetEmail = _config["Settings:TargetEmail"] ?? "";
         string smtpServer = _config["Settings:Smtp:Server"] ?? "smtp.gmail.com";
         string smtpPass = _config["Settings:Smtp:Pass"] ?? "";
         
-        // Converte a porta com segurança, usando 587 como padrão
+        // Converts the door safely, using 587 as the default
         int smtpPort = int.TryParse(_config["Settings:Smtp:Port"], out var p) ? p : 587;
 
         message.From.Add(new MailboxAddress("Stock Alert", smtpUser));

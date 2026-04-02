@@ -36,7 +36,7 @@ public class QuoteService
                 }
             }
 
-            if (_apiUsed == StockAPI.MyMockData)
+            if (_apiUsed == StockAPI.MockData)
             {
                 decimal price = _mockPrices[_mockCounter];
                 _mockCounter = (_mockCounter + 1) % _mockPrices.Length;
