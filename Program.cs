@@ -2,23 +2,31 @@
 using System.Net.Http.Json;
 using YahooFinanceApi;
 
-// Carregar Configurações
+// Loading configurations
 var config = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .Build();
 
-// Validar Argumentos via linha de comando
+// Define api used
+StockAPI apiUsed = StockAPI.MyMockData;
+
+// Validate console arguments
 if (args.Length < 3)
 {
     Console.WriteLine("Uso: stock-quote-alert PETR4 22.67 22.59");
     return;
 }
 
-// Lendo o Token de forma segura
-string token = config["Settings:BrapiToken"] ?? throw new Exception("BrapiToken não configurado no appsettings.json.");
+// Safely reading Brapi Token
+string token = "";
+if (apiUsed == StockAPI.Brapi)
+{
+    token = config["Settings:BrapiToken"] ?? throw new Exception("BrapiToken não configurado no appsettings.json.");
+}
 
 var alert = new AlertConfig(args[0], decimal.Parse(args[1]), decimal.Parse(args[2]));
+var quoteService = new QuoteService(token, apiUsed);
 var emailService = new EmailService(config);
 using var httpClient = new HttpClient();
 
@@ -27,41 +35,47 @@ Console.WriteLine($"Monitorando {alert.Symbol}... (Ctrl+C para sair)");
 Level position = Level.BetweenPrices;
 Level lastPosition = Level.BetweenPrices;
 
-// decimal[] placeHolderPrices = { 1, 1, 2, 2, 3, 3, 1, 2, 3, 2, 1 };
+decimal[] mockPrices = { 1, 1, 2, 2, 3, 3, 1, 2, 3, 2, 1 };
 
-// Loop de Monitoramento~
+// Monitoring Loop
 int counter = 0;
 while (true)
 {
     try
     {
-        var url = $"https://brapi.dev/api/quote/{alert.Symbol}?token={token}";
-        // var response = await httpClient.GetFromJsonAsync<BrapiResponse>(url);
+        decimal? currentPrice = await quoteService.GetPriceAsync(alert.Symbol);
 
-        // var symbols = new[] { "PETR4.SA", "AAPL" }; 
-        var response = await Yahoo.Symbols(alert.Symbol).Fields(Field.RegularMarketPrice).QueryAsync();
-        // var stockPrice = response[alert.Symbol].RegularMarketPrice;
+        if (apiUsed == StockAPI.Brapi)
+        {
+            var url = $"https://brapi.dev/api/quote/{alert.Symbol}?token={token}";
+            var response = await httpClient.GetFromJsonAsync<BrapiResponse>(url);
+
+            if (response?.Results != null && response.Results.Count > 0)
+            {
+                currentPrice = response.Results[0].RegularMarketPrice;
+            }
+        }
+        else if (apiUsed == StockAPI.Yahoo)
+        {
+            var response = await Yahoo.Symbols(alert.Symbol).Fields(Field.RegularMarketPrice).QueryAsync();
+
+            if (response.ContainsKey(alert.Symbol))
+            {
+                currentPrice = Convert.ToDecimal(response[alert.Symbol].RegularMarketPrice);
+            }
+        }
+        else if (apiUsed == StockAPI.MyMockData)
+        {
+            currentPrice = mockPrices[counter];
+        }
 
         if (lastPosition != position)
         {
             lastPosition = position;
         }
 
-        // Verificação de segurança (evita NullReferenceException)
-        // if (response != null && response.Results != null && response.Results.Count > 0)
-        // {
-
-        if (response.ContainsKey(alert.Symbol))
+        if (currentPrice.HasValue)
         {
-            //Yahoo
-            var stockData = response[alert.Symbol];
-            decimal currentPrice = Convert.ToDecimal(stockData.RegularMarketPrice);
-
-            //Brapi
-            //var currentPrice = response.Results[0].RegularMarketPrice;
-
-            //MockPrices
-            // var currentPrice = placeHolderPrices[counter];
 
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {alert.Symbol}: R$ {currentPrice}");
 
@@ -115,10 +129,3 @@ while (true)
     await Task.Delay(TimeSpan.FromMinutes(1));
     //await Task.Delay(TimeSpan.FromSeconds(3));
 }
-
-enum Level
-{
-    BuyPrice,
-    BetweenPrices,
-    SellPrice,
-};
