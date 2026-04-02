@@ -8,7 +8,8 @@ var config = new ConfigurationBuilder()
     .Build();
 
 // Validar Argumentos via linha de comando
-if (args.Length < 3) {
+if (args.Length < 3)
+{
     Console.WriteLine("Uso: stock-quote-alert PETR4 22.67 22.59");
     return;
 }
@@ -22,34 +23,86 @@ using var httpClient = new HttpClient();
 
 Console.WriteLine($"Monitorando {alert.Symbol}... (Ctrl+C para sair)");
 
-// Loop de Monitoramento
-while (true) {
-    try {
+Level position = Level.BetweenPrices;
+Level lastPosition = Level.BetweenPrices;
+decimal[] placeHolderPrices = { 1, 1, 2, 2, 3, 3, 1, 2, 3, 2, 1 };
+
+// Loop de Monitoramento~
+int counter = 0;
+while (true)
+{
+    try
+    {
         var url = $"https://brapi.dev/api/quote/{alert.Symbol}?token={token}";
         var response = await httpClient.GetFromJsonAsync<BrapiResponse>(url);
 
+        if (lastPosition != position)
+        {
+            lastPosition = position;
+        }
+
         // Verificação de segurança (evita NullReferenceException)
-        if (response != null && response.Results != null && response.Results.Count > 0) {
-            var currentPrice = response.Results[0].RegularMarketPrice;
+        // if (response != null && response.Results != null && response.Results.Count > 0)
+        // {
+        // var currentPrice = response.Results[0].RegularMarketPrice;
+        var currentPrice = placeHolderPrices[counter];
 
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {alert.Symbol}: R$ {currentPrice}");
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {alert.Symbol}: R$ {currentPrice}");
 
-            // Lógica de Alerta de compra ou venda
-            if (currentPrice > alert.SellPrice) {
-                Console.WriteLine($"O preço está acima e atingiu R$ {currentPrice}");
+
+        // Lógica de Alerta de compra ou venda
+        if (currentPrice > alert.SellPrice)
+        {
+            position = Level.SellPrice;
+            if (lastPosition != position)
+            {
                 // emailService.SendAlert($"Venda {alert.Symbol}", $"O preço atingiu R$ {currentPrice}. Sugestão de venda acima de R$ {alert.SellPrice}.");
                 Console.WriteLine("Alerta de VENDA enviado!");
-            } 
-            else if (currentPrice < alert.BuyPrice) {
-                Console.WriteLine($"O preço está abaixo e atingiu R$ {currentPrice}");
+            }
+        }
+        else if (currentPrice < alert.BuyPrice)
+        {
+            position = Level.BuyPrice;
+            if (lastPosition != position)
+            {
                 // emailService.SendAlert($"Compra {alert.Symbol}", $"O preço caiu para R$ {currentPrice}. Sugestão de compra abaixo de R$ {alert.BuyPrice}.");
                 Console.WriteLine("Alerta de COMPRA enviado!");
             }
         }
+        else
+        {
+            position = Level.BetweenPrices;
+            if (lastPosition != position)
+            {
+                if (lastPosition == Level.BuyPrice)
+                {
+                    Console.WriteLine("Alerta de NÃO COMPRA enviado!");
+                }
+                else if (lastPosition == Level.SellPrice)
+                {
+                    Console.WriteLine("Alerta de NÃO VENDA enviado!");
+                }
+            }
+        }
+        // }
     }
-    catch (Exception ex) {
+    catch (Exception ex)
+    {
         Console.WriteLine($"Erro: {ex.Message}");
     }
+    counter++;
+    if (counter > 10)
+    {
+        counter = 0;
+    }
 
-    await Task.Delay(TimeSpan.FromMinutes(2));
+    // await Task.Delay(TimeSpan.FromMinutes(2));
+    await Task.Delay(TimeSpan.FromSeconds(3));
 }
+
+enum Level
+{
+    BuyPrice,
+    BetweenPrices,
+    SellPrice,
+};
